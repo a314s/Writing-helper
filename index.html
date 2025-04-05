@@ -23,11 +23,16 @@
                     <input type="password" id="api-key" placeholder="Enter your API key here">
                 </div>
                 <div class="form-group">
+                    <label for="provider-selection">API Provider:</label>
+                    <select id="provider-selection">
+                        <option value="openai">OpenAI (GPT-4o)</option>
+                        <option value="anthropic">Anthropic (Claude)</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label for="model-selection">AI Model:</label>
                     <select id="model-selection">
-                        <option value="claude-3-7-opus-20250218">Claude 3.7 Opus (Most Powerful)</option>
-                        <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet (Balanced)</option>
-                        <option value="claude-3-7-haiku-20250307">Claude 3.7 Haiku (Fastest)</option>
+                        <!-- Models will be populated based on selected provider -->
                     </select>
                 </div>
                 <button id="save-api-config-btn" class="primary-btn">Save Configuration</button>

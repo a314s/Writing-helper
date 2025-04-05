@@ -1,10 +1,13 @@
 // API Configuration - EXAMPLE FILE
 // INSTRUCTIONS:
 // 1. Copy this file and rename it to config.js
-// 2. Add your Anthropic API key to the apiKey field
+// 2. Add your API key (OpenAI or Anthropic) to the appropriate apiKey field
 // 3. The config.js file is included in .gitignore to prevent committing your API key
 
 const CONFIG = {
+    // API Provider - can be 'anthropic' or 'openai'
+    apiProvider: 'openai', // Choose which API provider to use
+    
     // Anthropic API settings
     anthropic: {
         apiKey: "", // Add your Anthropic API key here (obtain from https://console.anthropic.com/)
@@ -16,6 +19,20 @@ const CONFIG = {
             sonnet: "claude-3-7-sonnet-20250219",
             haiku: "claude-3-7-haiku-20250307"
         }
+    },
+    
+    // OpenAI API settings
+    openai: {
+        apiKey: "", // Add your OpenAI API key here (obtain from https://platform.openai.com/)
+        apiUrl: "https://api.openai.com/v1/chat/completions",
+        maxTokens: 4000,
+        // Latest OpenAI models
+        models: {
+            gpt4o: "gpt-4o",
+            gpt4: "gpt-4-turbo",
+            gpt35: "gpt-3.5-turbo"
+        },
+        defaultModel: "gpt-4o" // Default to GPT-4o
     },
     
     // Default system prompts for different stages
