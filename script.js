@@ -1408,41 +1408,158 @@ async function handleSendToAI() {
         return;
     }
     
-    // Prepare the story content
-    let storyContent = '';
-    state.chapters.forEach(chapter => {
-        storyContent += `## ${chapter.title}\n\n${chapter.content}\n\n`;
-    });
-    
     // Show a confirmation dialog
-    const confirmed = confirm(`This will send your story to ${CONFIG.apiProvider === 'openai' ? 'OpenAI' : 'Anthropic'}'s AI for further refinement. Continue?`);
+    const confirmed = confirm(`This will send your story to ${CONFIG.apiProvider === 'openai' ? 'OpenAI' : 'Anthropic'}'s AI for expansion and refinement. This process will create a much longer, more detailed version of your story. Continue?`);
     
     if (!confirmed) {
         return;
     }
     
+    // Create a modal to show progress
+    createProgressModal();
+    
     try {
-        const prompt = `I've written a story and would like your feedback and suggestions for improvement. Here's my story:
-
-${storyContent}
-
-Please provide:
-1. Overall feedback on the story structure, pacing, and coherence
-2. Suggestions for improving character development
-3. Ideas for enhancing the plot and making it more engaging
-4. Any specific sections that could be expanded or refined
-5. A revised version of the first chapter as an example of how the writing could be improved`;
-
-        // This would typically send to a backend that handles the API call
-        alert(`In a production environment, this would send your story to ${CONFIG.apiProvider === 'openai' ? 'OpenAI' : 'Anthropic'}'s API for feedback and refinement. For this demo, we'll simulate that the story was sent successfully.`);
+        // Create a new array to store the expanded chapters
+        const expandedChapters = [];
         
-        console.log('Story data that would be sent:', {
-            prompt: prompt,
-            model: state.model
-        });
+        // Process each chapter
+        for (let i = 0; i < state.chapters.length; i++) {
+            const chapter = state.chapters[i];
+            updateProgressModal(`Processing chapter ${i+1} of ${state.chapters.length}: ${chapter.title}`, (i / state.chapters.length) * 100);
+            
+            // Break the chapter into sections for expansion
+            const expandedSections = await expandChapterInSections(chapter);
+            
+            // Combine the expanded sections into a new chapter
+            const expandedChapter = {
+                title: chapter.title,
+                content: expandedSections.join('\n\n')
+            };
+            
+            expandedChapters.push(expandedChapter);
+        }
+        
+        // Update the state with the expanded chapters
+        state.chapters = expandedChapters;
+        
+        // Render the expanded chapters
+        renderChapters(expandedChapters);
+        
+        // Close the progress modal
+        closeProgressModal();
+        
+        // Show success message
+        alert('Your story has been successfully expanded and refined!');
+        
     } catch (error) {
-        console.error('Error sending to AI:', error);
-        showError('API Error', 'There was an error sending your story to the AI. Please try again.');
+        console.error('Error expanding story:', error);
+        showError('API Error', 'There was an error expanding your story. Please try again.');
+        closeProgressModal();
+    }
+}
+
+// Function to expand a chapter by breaking it into sections and sending each to the API
+async function expandChapterInSections(chapter) {
+    // Break the chapter content into sections (paragraphs)
+    const paragraphs = chapter.content.split('\n\n').filter(p => p.trim() !== '');
+    
+    // Group paragraphs into sections of 2-3 paragraphs each
+    const sections = [];
+    for (let i = 0; i < paragraphs.length; i += 2) {
+        const section = paragraphs.slice(i, i + 2).join('\n\n');
+        if (section.trim() !== '') {
+            sections.push(section);
+        }
+    }
+    
+    // If there are no sections, treat the whole chapter as one section
+    if (sections.length === 0) {
+        sections.push(chapter.content);
+    }
+    
+    // Expand each section
+    const expandedSections = [];
+    for (let i = 0; i < sections.length; i++) {
+        updateProgressModal(`Expanding section ${i+1} of ${sections.length} in "${chapter.title}"`, null);
+        
+        const section = sections[i];
+        const expandedSection = await expandSection(section, chapter.title);
+        expandedSections.push(expandedSection);
+        
+        // Add a small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    return expandedSections;
+}
+
+// Function to expand a single section using the API
+async function expandSection(section, chapterTitle) {
+    const prompt = `I'm writing a story and need to expand and enhance this section from the chapter "${chapterTitle}".
+Please rewrite this section to be more detailed, with richer descriptions, more engaging dialogue, and deeper character development.
+Make it 3-4 times longer than the original, while maintaining the same plot points and narrative flow.
+
+Here's the section to expand:
+
+${section}`;
+
+    const systemPrompt = "You are an expert fiction writer known for vivid descriptions, engaging dialogue, and deep character development. Your task is to expand and enhance story sections while maintaining the original narrative flow and plot points.";
+    
+    try {
+        const expandedSection = await callAPI(prompt, systemPrompt);
+        return expandedSection;
+    } catch (error) {
+        console.error('Error expanding section:', error);
+        // Return the original section if expansion fails
+        return section;
+    }
+}
+
+// Function to create a modal to show progress
+function createProgressModal() {
+    // Create modal elements if they don't exist
+    if (!document.getElementById('progress-modal')) {
+        const modalHTML = `
+        <div id="progress-modal" class="modal">
+            <div class="modal-content">
+                <h3>Expanding Your Story</h3>
+                <p id="progress-message">Processing your story...</p>
+                <div class="progress-container">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+                <p class="note">This may take several minutes depending on the length of your story.</p>
+            </div>
+        </div>`;
+        
+        const modalElement = document.createElement('div');
+        modalElement.innerHTML = modalHTML;
+        document.body.appendChild(modalElement.firstElementChild);
+    }
+    
+    // Show the modal
+    const progressModal = document.getElementById('progress-modal');
+    progressModal.classList.remove('hidden');
+}
+
+// Function to update the progress modal
+function updateProgressModal(message, percentComplete) {
+    const progressMessage = document.getElementById('progress-message');
+    const progressBar = document.getElementById('progress-bar');
+    
+    if (progressMessage) {
+        progressMessage.textContent = message;
+    }
+    
+    if (progressBar && percentComplete !== null) {
+        progressBar.style.width = `${percentComplete}%`;
+    }
+}
+
+// Function to close the progress modal
+function closeProgressModal() {
+    const progressModal = document.getElementById('progress-modal');
+    if (progressModal) {
+        progressModal.classList.add('hidden');
     }
 }
 
