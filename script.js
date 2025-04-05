@@ -53,20 +53,41 @@ const state = {
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM fully loaded');
+    
+    // Check if elements exist
+    console.log('API config section exists:', !!apiConfigSection);
+    console.log('Save API config button exists:', !!saveApiConfigBtn);
+    console.log('Expand prompt button exists:', !!expandPromptBtn);
+    
     // Always start with the API configuration section
     switchSection(apiConfigSection);
+    console.log('Switched to API config section');
+    
     // Load saved API configuration
     loadApiConfig();
     
     // Add event listeners only if elements exist
     // API Configuration
     if (saveApiConfigBtn) {
-        saveApiConfigBtn.addEventListener('click', handleSaveApiConfig);
+        console.log('Adding click listener to Save Configuration button');
+        saveApiConfigBtn.addEventListener('click', function() {
+            console.log('Save Configuration button clicked');
+            handleSaveApiConfig();
+        });
+    } else {
+        console.error('Save API config button not found');
     }
     
     // Initial prompt expansion
     if (expandPromptBtn) {
-        expandPromptBtn.addEventListener('click', handleExpandPrompt);
+        console.log('Adding click listener to Expand Prompt button');
+        expandPromptBtn.addEventListener('click', function() {
+            console.log('Expand Prompt button clicked');
+            handleExpandPrompt();
+        });
+    } else {
+        console.error('Expand prompt button not found');
     }
     
     // Plot generation
@@ -159,16 +180,35 @@ function loadApiConfig() {
 }
 
 function handleSaveApiConfig() {
+    console.log('handleSaveApiConfig function called');
+    
+    // Check if DOM elements exist
+    if (!apiKeyInput) {
+        console.error('API key input element not found');
+        alert('Error: API key input element not found');
+        return;
+    }
+    
+    if (!modelSelection) {
+        console.error('Model selection element not found');
+        alert('Error: Model selection element not found');
+        return;
+    }
+    
     const apiKey = apiKeyInput.value.trim();
     // Get the selected model value
     let model = modelSelection.value;
     
+    console.log('API Key length:', apiKey.length);
+    console.log('Selected model:', model);
+    
     if (!apiKey) {
+        console.log('No API key provided');
+        alert('API Key Required: Please enter your Anthropic API key to continue.');
         showError('API Key Required', 'Please enter your Anthropic API key to continue.');
         return;
     }
     
-    // Basic validation for Anthropic API key format
     if (!apiKey.startsWith('sk-ant-')) {
         showError('Invalid API Key', 'The API key should start with "sk-ant-". Please check your Anthropic API key.');
         return;
@@ -176,9 +216,16 @@ function handleSaveApiConfig() {
     
     console.log('Saving API configuration with model:', model);
     
-    // Save to local storage
-    localStorage.setItem('anthropic_api_key', apiKey);
-    localStorage.setItem('anthropic_model', model);
+    try {
+        // Save to local storage
+        localStorage.setItem('anthropic_api_key', apiKey);
+        localStorage.setItem('anthropic_model', model);
+        console.log('Saved to localStorage successfully');
+    } catch (storageError) {
+        console.error('Error saving to localStorage:', storageError);
+        alert('Error saving to localStorage: ' + storageError.message);
+        return;
+    }
     
     // Update state
     state.apiKey = apiKey;
@@ -189,17 +236,37 @@ function handleSaveApiConfig() {
     alert('API configuration saved successfully! You can now use the AI Story Developer.');
     
     // Switch to prompt section
+    if (!promptSection) {
+        console.error('Prompt section element not found');
+        alert('Error: Prompt section element not found');
+        return;
+    }
+    
+    console.log('Switching to prompt section');
     switchSection(promptSection);
     
     // Test API connection
+    console.log('Testing API connection');
     testApiConnection();
 }
 
 // Function to test API connection
 async function testApiConnection() {
     try {
+        console.log('testApiConnection function called');
+        
+        // Check if CONFIG is defined
+        if (!CONFIG || !CONFIG.anthropic || !CONFIG.anthropic.apiUrl) {
+            console.error('CONFIG or CONFIG.anthropic.apiUrl is not defined');
+            alert('Error: API configuration is not properly defined');
+            return false;
+        }
+        
         // Show a message to the user
         alert('Testing API connection... This may take a moment.');
+        
+        console.log('Making test API call to:', CONFIG.anthropic.apiUrl);
+        console.log('Using API key (first 10 chars):', state.apiKey.substring(0, 10) + '...');
         
         const response = await fetch(CONFIG.anthropic.apiUrl, {
             method: 'POST',
@@ -364,9 +431,14 @@ async function callAnthropicAPI(prompt, systemPrompt) {
 
 // Handler Functions
 async function handleExpandPrompt() {
+    console.log('handleExpandPrompt function called');
+    
     const prompt = initialPromptTextarea.value.trim();
+    console.log('Prompt text:', prompt);
     
     if (!prompt) {
+        console.log('No prompt text provided');
+        alert('Input Required: Please enter a story prompt first.');
         showError('Input Required', 'Please enter a story prompt first.');
         return;
     }
