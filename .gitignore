@@ -1,0 +1,32 @@
+# Ignore configuration files that may contain sensitive information
+config.js
+
+# Ignore node modules if you add npm packages in the future
+node_modules/
+
+# Ignore environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Ignore log files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore OS specific files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE specific files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Ignore build and distribution directories
+/dist
+/build

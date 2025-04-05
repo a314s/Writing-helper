@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Story Developer</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI Story Developer</h1>
+            <p>Transform your story ideas into fully developed narratives using AI</p>
+        </header>
+
+        <main>
+            <section id="api-config-section" class="active-section">
+                <h2>API Configuration</h2>
+                <p>Enter your Anthropic API key to enable AI-powered story development:</p>
+                <div class="form-group">
+                    <label for="api-key">Anthropic API Key:</label>
+                    <input type="password" id="api-key" placeholder="Enter your API key here">
+                </div>
+                <div class="form-group">
+                    <label for="model-selection">AI Model:</label>
+                    <select id="model-selection">
+                        <option value="claude-3-7-opus-20250218">Claude 3.7 Opus (Most Powerful)</option>
+                        <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet (Balanced)</option>
+                        <option value="claude-3-7-haiku-20250307">Claude 3.7 Haiku (Fastest)</option>
+                    </select>
+                </div>
+                <button id="save-api-config-btn" class="primary-btn">Save Configuration</button>
+                <p class="note">Your API key is stored locally in your browser and is never sent to our servers.</p>
+            </section>
+            <section id="prompt-section" class="active-section">
+                <h2>Start with a Story Prompt</h2>
+                <p>Enter a brief description of your story idea:</p>
+                <textarea id="initial-prompt" placeholder="E.g., A detective with the ability to speak to the dead investigates a series of mysterious disappearances in a small coastal town..."></textarea>
+                <button id="expand-prompt-btn" class="primary-btn">Expand Prompt</button>
+                <div id="loading-prompt" class="loading-indicator hidden">
+                    <div class="spinner"></div>
+                    <p>Expanding your story prompt...</p>
+                </div>
+            </section>
+
+            <section id="expanded-prompt-section" class="hidden-section">
+                <h2>Expanded Story Concept</h2>
+                <div id="expanded-prompt-content" class="content-box"></div>
+                <button id="generate-plots-btn" class="primary-btn">Generate Plot Suggestions</button>
+                <button id="revise-prompt-btn" class="secondary-btn">Revise Prompt</button>
+            </section>
+
+            <section id="plot-suggestions-section" class="hidden-section">
+                <h2>Plot & Subplot Suggestions</h2>
+                <div id="plot-suggestions-container">
+                    <!-- Plot suggestions will be dynamically added here -->
+                </div>
+                <button id="regenerate-plots-btn" class="secondary-btn">Generate New Suggestions</button>
+                <button id="develop-selected-btn" class="primary-btn">Develop Selected Plots</button>
+                <div id="loading-plots" class="loading-indicator hidden">
+                    <div class="spinner"></div>
+                    <p>Generating plot suggestions...</p>
+                </div>
+            </section>
+
+            <section id="chapter-development-section" class="hidden-section">
+                <h2>Chapter Development</h2>
+                <div id="chapters-container">
+                    <!-- Chapters will be dynamically added here -->
+                </div>
+                <button id="export-story-btn" class="primary-btn">Export Story</button>
+                <button id="send-to-ai-btn" class="highlight-btn">Send to AI</button>
+                <div id="loading-chapters" class="loading-indicator hidden">
+                    <div class="spinner"></div>
+                    <p>Developing chapters...</p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>AI Story Developer - Powered by AI</p>
+        </footer>
+    </div>
+
+    <!-- Templates -->
+    <template id="plot-suggestion-template">
+        <div class="plot-suggestion">
+            <div class="plot-header">
+                <input type="checkbox" class="plot-checkbox">
+                <h3 class="plot-title"></h3>
+            </div>
+            <p class="plot-description"></p>
+        </div>
+    </template>
+
+    <template id="chapter-template">
+        <div class="chapter">
+            <h3 class="chapter-title"></h3>
+            <div class="chapter-content"></div>
+            <button class="edit-chapter-btn secondary-btn">Edit</button>
+            <button class="regenerate-chapter-btn secondary-btn">Regenerate</button>
+        </div>
+    </template>
+
+    <script src="script.js"></script>
+    
+    <!-- API Error Modal -->
+    <div id="error-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>API Error</h3>
+            <p id="error-message"></p>
+            <div class="error-details hidden" id="error-details-container">
+                <h4>Error Details</h4>
+                <pre id="error-details"></pre>
+            </div>
+            <button id="close-error-btn" class="secondary-btn">Close</button>
+        </div>
+    </div>
+</body>
+</html>
