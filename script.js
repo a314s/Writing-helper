@@ -8,7 +8,21 @@ const state = {
     expandedPrompt: '',
     selectedPlots: [],
     plotSuggestions: [],
-    chapters: []
+    chapters: [],
+    // Editor state
+    editor: {
+        currentFile: null,
+        currentFilename: 'Untitled',
+        content: '',
+        isDirty: false,
+        selectionStart: 0,
+        selectionEnd: 0,
+        referenceDoc: {
+            characters: [],
+            paragraphSummaries: [],
+            style: ''
+        }
+    }
 };
 
 // DOM Elements - Will be initialized in DOMContentLoaded
@@ -40,10 +54,13 @@ let promptSection;
 let expandedPromptSection;
 let plotSuggestionsSection;
 let chapterDevelopmentSection;
+let editorSection;
 
 // Templates
 let plotSuggestionTemplate;
 let chapterTemplate;
+let characterItemTemplate;
+let paragraphSummaryTemplate;
 
 // Error modal elements
 let errorModal;
@@ -53,34 +70,65 @@ let errorDetailsContainer;
 let closeErrorBtn;
 let closeModalBtn;
 
+// Editor elements
+let editorContent;
+let currentFilename;
+let saveStatus;
+let newFileBtn;
+let openFileBtn;
+let saveFileBtn;
+let fileInput;
+let boldBtn;
+let italicBtn;
+let underlineBtn;
+let headingBtn;
+let headingLevel;
+let undoBtn;
+let redoBtn;
+let aiAssistBtn;
+let aiAssistType;
+let characterList;
+let paragraphSummaries;
+let storyStyle;
+let storyMetadata;
+let aiAssistModal;
+let aiAssistLoading;
+let aiAssistResult;
+let applyAiSuggestionBtn;
+let cancelAiSuggestionBtn;
+let fileSaveModal;
+let saveFilename;
+let confirmSaveBtn;
+let cancelSaveBtn;
+let accordionHeaders;
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', initializeApp);
 
 function initializeApp() {
-    console.log('DOM fully loaded');
+    console.log('Initializing app...');
     
-    // Initialize all DOM elements
+    // Initialize DOM elements
     initializeDOMElements();
     
-    // Check if elements exist
-    console.log('API config section exists:', !!apiConfigSection);
-    console.log('Save API config button exists:', !!saveApiConfigBtn);
-    console.log('Expand prompt button exists:', !!expandPromptBtn);
+    // Add event listeners
+    addEventListeners();
     
-    // Set default model
-    if (CONFIG && CONFIG.anthropic && CONFIG.anthropic.models) {
-        state.model = CONFIG.anthropic.models.sonnet; // Default to Sonnet
-    }
-    
-    // Always start with the API configuration section
-    switchSection(apiConfigSection);
-    console.log('Switched to API config section');
-    
-    // Load saved API configuration
+    // Load API configuration
     loadApiConfig();
     
-    // Add event listeners only if elements exist
-    addEventListeners();
+    // Set initial section
+    const initialSection = document.querySelector('.active-section') || promptSection;
+    switchSection(initialSection);
+    
+    // Set active nav link for initial section
+    const initialSectionId = initialSection.id;
+    const initialNavLink = document.querySelector(`nav a[data-section="${initialSectionId}"]`);
+    if (initialNavLink) {
+        initialNavLink.classList.add('active');
+    }
+    
+    console.log('App initialized');
 }
 
 function initializeDOMElements() {
@@ -113,10 +161,13 @@ function initializeDOMElements() {
     expandedPromptSection = document.getElementById('expanded-prompt-section');
     plotSuggestionsSection = document.getElementById('plot-suggestions-section');
     chapterDevelopmentSection = document.getElementById('chapter-development-section');
+    editorSection = document.getElementById('editor-section');
 
     // Templates
     plotSuggestionTemplate = document.getElementById('plot-suggestion-template');
     chapterTemplate = document.getElementById('chapter-template');
+    characterItemTemplate = document.getElementById('character-item-template');
+    paragraphSummaryTemplate = document.getElementById('paragraph-summary-template');
 
     // Error modal elements
     errorModal = document.getElementById('error-modal');
@@ -125,6 +176,38 @@ function initializeDOMElements() {
     errorDetailsContainer = document.getElementById('error-details-container');
     closeErrorBtn = document.getElementById('close-error-btn');
     closeModalBtn = document.querySelector('.close-modal');
+    
+    // Editor elements
+    editorContent = document.getElementById('editor-content');
+    currentFilename = document.getElementById('current-filename');
+    saveStatus = document.getElementById('save-status');
+    newFileBtn = document.getElementById('new-file-btn');
+    openFileBtn = document.getElementById('open-file-btn');
+    saveFileBtn = document.getElementById('save-file-btn');
+    fileInput = document.getElementById('file-input');
+    boldBtn = document.getElementById('bold-btn');
+    italicBtn = document.getElementById('italic-btn');
+    underlineBtn = document.getElementById('underline-btn');
+    headingBtn = document.getElementById('heading-btn');
+    headingLevel = document.getElementById('heading-level');
+    undoBtn = document.getElementById('undo-btn');
+    redoBtn = document.getElementById('redo-btn');
+    aiAssistBtn = document.getElementById('ai-assist-btn');
+    aiAssistType = document.getElementById('ai-assist-type');
+    characterList = document.getElementById('character-list');
+    paragraphSummaries = document.getElementById('paragraph-summaries');
+    storyStyle = document.getElementById('story-style');
+    storyMetadata = document.getElementById('story-metadata');
+    aiAssistModal = document.getElementById('ai-assist-modal');
+    aiAssistLoading = document.getElementById('ai-assist-loading');
+    aiAssistResult = document.getElementById('ai-assist-result');
+    applyAiSuggestionBtn = document.getElementById('apply-ai-suggestion-btn');
+    cancelAiSuggestionBtn = document.getElementById('cancel-ai-suggestion-btn');
+    fileSaveModal = document.getElementById('file-save-modal');
+    saveFilename = document.getElementById('save-filename');
+    confirmSaveBtn = document.getElementById('confirm-save-btn');
+    cancelSaveBtn = document.getElementById('cancel-save-btn');
+    accordionHeaders = document.querySelectorAll('.accordion-header');
     
     // Set provider selection to match CONFIG
     if (providerSelection) {
@@ -178,36 +261,31 @@ function updateModelSelection() {
 function addEventListeners() {
     // API Configuration
     if (saveApiConfigBtn) {
-        console.log('Adding click listener to Save Configuration button');
-        saveApiConfigBtn.addEventListener('click', function() {
-            console.log('Save Configuration button clicked');
-            handleSaveApiConfig();
-        });
-    } else {
-        console.error('Save API config button not found');
+        saveApiConfigBtn.addEventListener('click', handleSaveApiConfig);
     }
     
-    // Initial prompt expansion
+    // Provider selection change
+    if (providerSelection) {
+        providerSelection.addEventListener('change', updateModelSelection);
+    }
+    
+    // Prompt Section
     if (expandPromptBtn) {
-        console.log('Adding click listener to Expand Prompt button');
-        expandPromptBtn.addEventListener('click', function() {
-            console.log('Expand Prompt button clicked');
-            handleExpandPrompt();
-        });
-    } else {
-        console.error('Expand prompt button not found');
+        expandPromptBtn.addEventListener('click', handleExpandPrompt);
     }
     
-    // Plot generation
+    // Expanded Prompt Section
     if (generatePlotsBtn) {
         generatePlotsBtn.addEventListener('click', handleGeneratePlots);
     }
     
     if (revisePromptBtn) {
-        revisePromptBtn.addEventListener('click', () => switchSection(promptSection));
+        revisePromptBtn.addEventListener('click', () => {
+            switchSection(promptSection);
+        });
     }
     
-    // Plot selection
+    // Plot Suggestions Section
     if (regeneratePlotsBtn) {
         regeneratePlotsBtn.addEventListener('click', handleRegeneratePlots);
     }
@@ -216,7 +294,7 @@ function addEventListeners() {
         developSelectedBtn.addEventListener('click', handleDevelopSelected);
     }
     
-    // Chapter development
+    // Chapter Development Section
     if (exportStoryBtn) {
         exportStoryBtn.addEventListener('click', handleExportStory);
     }
@@ -225,13 +303,397 @@ function addEventListeners() {
         sendToAiBtn.addEventListener('click', handleSendToAI);
     }
     
-    // Error modal
+    // Error Modal
     if (closeErrorBtn) {
         closeErrorBtn.addEventListener('click', closeErrorModal);
     }
     
     if (closeModalBtn) {
         closeModalBtn.addEventListener('click', closeErrorModal);
+    }
+    
+    // Editor Event Listeners
+    if (newFileBtn) {
+        newFileBtn.addEventListener('click', handleNewFile);
+    }
+    
+    if (openFileBtn) {
+        openFileBtn.addEventListener('click', () => fileInput.click());
+    }
+    
+    if (fileInput) {
+        fileInput.addEventListener('change', handleFileOpen);
+    }
+    
+    if (saveFileBtn) {
+        saveFileBtn.addEventListener('click', handleFileSave);
+    }
+    
+    if (editorContent) {
+        editorContent.addEventListener('input', handleEditorChange);
+        editorContent.addEventListener('keydown', handleEditorKeydown);
+        editorContent.addEventListener('mouseup', updateSelectionState);
+        editorContent.addEventListener('keyup', updateSelectionState);
+    }
+    
+    // Text formatting buttons
+    if (boldBtn) {
+        boldBtn.addEventListener('click', () => formatText('bold'));
+    }
+    
+    if (italicBtn) {
+        italicBtn.addEventListener('click', () => formatText('italic'));
+    }
+    
+    if (underlineBtn) {
+        underlineBtn.addEventListener('click', () => formatText('underline'));
+    }
+    
+    if (headingBtn) {
+        headingBtn.addEventListener('click', () => formatText('heading'));
+    }
+    
+    if (undoBtn) {
+        undoBtn.addEventListener('click', () => document.execCommand('undo'));
+    }
+    
+    if (redoBtn) {
+        redoBtn.addEventListener('click', () => document.execCommand('redo'));
+    }
+    
+    // AI Assist
+    if (aiAssistBtn) {
+        aiAssistBtn.addEventListener('click', handleAiAssist);
+    }
+    
+    if (applyAiSuggestionBtn) {
+        applyAiSuggestionBtn.addEventListener('click', applyAiSuggestion);
+    }
+    
+    if (cancelAiSuggestionBtn) {
+        cancelAiSuggestionBtn.addEventListener('click', closeAiAssistModal);
+    }
+    
+    // File Save Modal
+    if (confirmSaveBtn) {
+        confirmSaveBtn.addEventListener('click', confirmFileSave);
+    }
+    
+    if (cancelSaveBtn) {
+        cancelSaveBtn.addEventListener('click', closeFileSaveModal);
+    }
+    
+    // Accordion headers
+    if (accordionHeaders) {
+        accordionHeaders.forEach(header => {
+            header.addEventListener('click', () => {
+                const accordionItem = header.parentElement;
+                accordionItem.classList.toggle('active');
+            });
+        });
+    }
+    
+    // Navigation menu
+    const navLinks = document.querySelectorAll('nav a');
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sectionId = link.getAttribute('data-section');
+            const section = document.getElementById(sectionId);
+            if (section) {
+                switchSection(section);
+                
+                // Update active nav link
+                navLinks.forEach(navLink => navLink.classList.remove('active'));
+                link.classList.add('active');
+            }
+        });
+    });
+}
+
+// API Call Functions
+async function callAPI(prompt, systemPrompt) {
+    // Determine which API to use based on configuration
+    if (CONFIG.apiProvider === 'openai') {
+        return callOpenAIAPI(prompt, systemPrompt);
+    } else {
+        return callAnthropicAPI(prompt, systemPrompt);
+    }
+}
+
+async function callOpenAIAPI(prompt, systemPrompt) {
+    // Debug logging
+    if (CONFIG.debug) {
+        console.log('=== OPENAI API CALL START ===');
+        console.log('API Key configured:', state.apiConfigured);
+        console.log('Model:', state.model);
+    }
+    
+    // Check if API is configured
+    if (!state.apiConfigured) {
+        showError('API Not Configured', 'Please configure your OpenAI API key first.');
+        if (apiConfigSection) {
+            switchSection(apiConfigSection);
+        }
+        return null;
+    }
+    
+    // Check if CONFIG is properly defined
+    if (!CONFIG || !CONFIG.openai || !CONFIG.openai.apiUrl) {
+        console.error('CONFIG or CONFIG.openai.apiUrl is not defined');
+        showError('Configuration Error', 'API configuration is not properly defined. Please check your config.js file.');
+        return null;
+    }
+    
+    // Check if model is defined
+    if (!state.model) {
+        console.error('Model is not defined');
+        state.model = CONFIG.openai.defaultModel; // Use default model if not set
+        console.log('Using default model:', state.model);
+    }
+    
+    // Log API call details for debugging
+    if (CONFIG.debug) {
+        console.log('Making OpenAI API call with model:', state.model);
+        console.log('System prompt:', systemPrompt);
+        console.log('User prompt:', prompt);
+    }
+    
+    try {
+        // Prepare messages array for OpenAI
+        const messages = [];
+        
+        // Add system prompt if provided
+        if (systemPrompt) {
+            messages.push({
+                role: 'system',
+                content: systemPrompt
+            });
+        }
+        
+        // Add user message
+        messages.push({
+            role: 'user',
+            content: prompt
+        });
+        
+        const requestBody = {
+            model: state.model,
+            max_tokens: CONFIG.openai.maxTokens || 4000,
+            messages: messages
+        };
+        
+        if (CONFIG.debug) {
+            console.log('Request body:', JSON.stringify(requestBody, null, 2));
+            console.log('API URL:', CONFIG.openai.apiUrl);
+            console.log('API Key (first 10 chars):', state.apiKey.substring(0, 10) + '...');
+        }
+        
+        // Check for network connectivity
+        if (!navigator.onLine) {
+            throw new Error('No internet connection. Please check your network and try again.');
+        }
+        
+        const response = await fetch(CONFIG.openai.apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${state.apiKey}`
+            },
+            body: JSON.stringify(requestBody)
+        });
+        
+        // Handle non-JSON responses
+        let responseData;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            responseData = await response.json();
+        } else {
+            const textResponse = await response.text();
+            throw new Error(`Received non-JSON response: ${textResponse}`);
+        }
+        
+        if (CONFIG.debug) {
+            console.log('API Response:', responseData);
+            console.log('=== OPENAI API CALL END ===');
+        }
+        
+        if (!response.ok) {
+            throw new Error(JSON.stringify(responseData));
+        }
+        
+        // Check if the response has the expected structure
+        if (!responseData.choices || responseData.choices.length === 0) {
+            throw new Error('Unexpected API response format: ' + JSON.stringify(responseData));
+        }
+        
+        // Extract text from the response
+        const messageContent = responseData.choices[0].message.content;
+        return messageContent;
+    } catch (error) {
+        console.error('=== OPENAI API ERROR ===');
+        console.error('API Error:', error);
+        
+        let errorMsg = 'There was an error calling the OpenAI API.';
+        let errorDetailsText = '';
+        
+        // Handle specific error types
+        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+            errorMsg = 'Network error: Failed to connect to the API. Please check your internet connection and API endpoint.';
+            errorDetailsText = 'This may be due to network connectivity issues, CORS restrictions, or an incorrect API endpoint.';
+        } else if (error.message.includes('NetworkError')) {
+            errorMsg = 'Network error: Unable to reach the API server.';
+            errorDetailsText = error.message;
+        } else {
+            // Try to parse error message as JSON
+            try {
+                const errorObj = JSON.parse(error.message);
+                errorMsg = errorObj.error?.message || errorMsg;
+                errorDetailsText = JSON.stringify(errorObj, null, 2);
+            } catch (e) {
+                errorDetailsText = error.message || error.toString();
+            }
+        }
+        
+        showError('API Error', errorMsg, errorDetailsText);
+        return null;
+    }
+}
+
+async function callAnthropicAPI(prompt, systemPrompt) {
+    // Debug logging
+    if (CONFIG.debug) {
+        console.log('=== ANTHROPIC API CALL START ===');
+        console.log('API Key configured:', state.apiConfigured);
+        console.log('Model:', state.model);
+    }
+    
+    // Check if API is configured
+    if (!state.apiConfigured) {
+        showError('API Not Configured', 'Please configure your Anthropic API key first.');
+        if (apiConfigSection) {
+            switchSection(apiConfigSection);
+        }
+        return null;
+    }
+    
+    // Check if CONFIG is properly defined
+    if (!CONFIG || !CONFIG.anthropic || !CONFIG.anthropic.apiUrl) {
+        console.error('CONFIG or CONFIG.anthropic.apiUrl is not defined');
+        showError('Configuration Error', 'API configuration is not properly defined. Please check your config.js file.');
+        return null;
+    }
+    
+    // Check if model is defined
+    if (!state.model) {
+        console.error('Model is not defined');
+        showError('Configuration Error', 'API model is not properly defined. Please check your configuration.');
+        return null;
+    }
+    
+    // Log API call details for debugging
+    if (CONFIG.debug) {
+        console.log('Making Anthropic API call with model:', state.model);
+        console.log('System prompt:', systemPrompt);
+        console.log('User prompt:', prompt);
+    }
+    
+    try {
+        const requestBody = {
+            model: state.model,
+            max_tokens: CONFIG.anthropic.maxTokens || 4000,
+            messages: [
+                {
+                    role: 'user',
+                    content: prompt
+                }
+            ]
+        };
+        
+        // Add system prompt if provided
+        if (systemPrompt) {
+            requestBody.system = systemPrompt;
+        }
+        
+        if (CONFIG.debug) {
+            console.log('Request body:', JSON.stringify(requestBody, null, 2));
+            console.log('API URL:', CONFIG.anthropic.apiUrl);
+            console.log('API Key (first 10 chars):', state.apiKey.substring(0, 10) + '...');
+        }
+        
+        // Check for network connectivity
+        if (!navigator.onLine) {
+            throw new Error('No internet connection. Please check your network and try again.');
+        }
+        
+        const response = await fetch(CONFIG.anthropic.apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': state.apiKey,
+                'anthropic-version': '2023-06-01' // Keep this version for backward compatibility
+            },
+            body: JSON.stringify(requestBody)
+        });
+        
+        // Handle non-JSON responses
+        let responseData;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            responseData = await response.json();
+        } else {
+            const textResponse = await response.text();
+            throw new Error(`Received non-JSON response: ${textResponse}`);
+        }
+        
+        if (CONFIG.debug) {
+            console.log('API Response:', responseData);
+            console.log('=== ANTHROPIC API CALL END ===');
+        }
+        
+        if (!response.ok) {
+            throw new Error(JSON.stringify(responseData));
+        }
+        
+        // Check if the response has the expected structure based on latest API format
+        if (!responseData.content || responseData.content.length === 0) {
+            throw new Error('Unexpected API response format: ' + JSON.stringify(responseData));
+        }
+        
+        // Extract text from the content array based on latest API format
+        const contentBlock = responseData.content[0];
+        if (contentBlock.type === 'text' && contentBlock.text) {
+            return contentBlock.text;
+        } else {
+            throw new Error('Unexpected content format in API response: ' + JSON.stringify(contentBlock));
+        }
+    } catch (error) {
+        console.error('=== ANTHROPIC API ERROR ===');
+        console.error('API Error:', error);
+        
+        let errorMsg = 'There was an error calling the Anthropic API.';
+        let errorDetailsText = '';
+        
+        // Handle specific error types
+        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+            errorMsg = 'Network error: Failed to connect to the API. Please check your internet connection and API endpoint.';
+            errorDetailsText = 'This may be due to network connectivity issues, CORS restrictions, or an incorrect API endpoint.';
+        } else if (error.message.includes('NetworkError')) {
+            errorMsg = 'Network error: Unable to reach the API server.';
+            errorDetailsText = error.message;
+        } else {
+            // Try to parse error message as JSON
+            try {
+                const errorObj = JSON.parse(error.message);
+                errorMsg = errorObj.error?.message || errorMsg;
+                errorDetailsText = JSON.stringify(errorObj, null, 2);
+            } catch (e) {
+                errorDetailsText = error.message || error.toString();
+            }
+        }
+        
+        showError('API Error', errorMsg, errorDetailsText);
+        return null;
     }
 }
 
@@ -608,17 +1070,20 @@ async function testOpenAIConnection() {
     } catch (error) {
         console.error('API test error:', error);
         
-        let errorMessage = 'Error testing connection to the OpenAI API: ' + error.message;
+        let errorMessage = 'There was an error testing connection to the OpenAI API.';
+        let errorDetailsText = '';
         
         // Handle specific error types
         if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
             errorMessage = 'Network error: Failed to connect to the API. Please check your internet connection and API endpoint.';
+            errorDetailsText = 'This may be due to network connectivity issues, CORS restrictions, or an incorrect API endpoint.';
         } else if (error.message.includes('NetworkError')) {
             errorMessage = 'Network error: Unable to reach the API server.';
+            errorDetailsText = error.message;
         }
         
         alert('API Connection Error: ' + errorMessage);
-        showError('API Connection Error', errorMessage, error.stack || error.toString());
+        showError('API Connection Error', errorMessage, errorDetailsText);
         
         // Reset API configuration
         state.apiConfigured = false;
@@ -739,8 +1204,10 @@ async function testAnthropicConnection() {
         // Handle specific error types
         if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
             errorMessage = 'Network error: Failed to connect to the API. Please check your internet connection and API endpoint.';
+            errorDetailsText = 'This may be due to network connectivity issues, CORS restrictions, or an incorrect API endpoint.';
         } else if (error.message.includes('NetworkError')) {
             errorMessage = 'Network error: Unable to reach the API server.';
+            errorDetailsText = error.message;
         }
         
         alert('API Connection Error: ' + errorMessage);
@@ -789,298 +1256,17 @@ function switchSection(sectionToShow) {
         chapterDevelopmentSection.classList.add('hidden-section');
     }
     
+    if (editorSection) {
+        editorSection.classList.remove('active-section');
+        editorSection.classList.add('hidden-section');
+    }
+    
     // Show the selected section
     sectionToShow.classList.remove('hidden-section');
     sectionToShow.classList.add('active-section');
     
     // Scroll to top
     window.scrollTo(0, 0);
-}
-
-// API Call Functions
-async function callAPI(prompt, systemPrompt) {
-    // Determine which API to use based on configuration
-    if (CONFIG.apiProvider === 'openai') {
-        return callOpenAIAPI(prompt, systemPrompt);
-    } else {
-        return callAnthropicAPI(prompt, systemPrompt);
-    }
-}
-
-async function callOpenAIAPI(prompt, systemPrompt) {
-    // Debug logging
-    if (CONFIG.debug) {
-        console.log('=== OPENAI API CALL START ===');
-        console.log('API Key configured:', state.apiConfigured);
-        console.log('Model:', state.model);
-    }
-    
-    // Check if API is configured
-    if (!state.apiConfigured) {
-        showError('API Not Configured', 'Please configure your OpenAI API key first.');
-        if (apiConfigSection) {
-            switchSection(apiConfigSection);
-        }
-        return null;
-    }
-    
-    // Check if CONFIG is properly defined
-    if (!CONFIG || !CONFIG.openai || !CONFIG.openai.apiUrl) {
-        console.error('CONFIG or CONFIG.openai.apiUrl is not defined');
-        showError('Configuration Error', 'API configuration is not properly defined. Please check your config.js file.');
-        return null;
-    }
-    
-    // Check if model is defined
-    if (!state.model) {
-        console.error('Model is not defined');
-        state.model = CONFIG.openai.defaultModel; // Use default model if not set
-        console.log('Using default model:', state.model);
-    }
-    
-    // Log API call details for debugging
-    if (CONFIG.debug) {
-        console.log('Making OpenAI API call with model:', state.model);
-        console.log('System prompt:', systemPrompt);
-        console.log('User prompt:', prompt);
-    }
-    
-    try {
-        // Prepare messages array for OpenAI
-        const messages = [];
-        
-        // Add system prompt if provided
-        if (systemPrompt) {
-            messages.push({
-                role: 'system',
-                content: systemPrompt
-            });
-        }
-        
-        // Add user message
-        messages.push({
-            role: 'user',
-            content: prompt
-        });
-        
-        const requestBody = {
-            model: state.model,
-            max_tokens: CONFIG.openai.maxTokens || 4000,
-            messages: messages
-        };
-        
-        if (CONFIG.debug) {
-            console.log('Request body:', JSON.stringify(requestBody, null, 2));
-            console.log('API URL:', CONFIG.openai.apiUrl);
-            console.log('API Key (first 10 chars):', state.apiKey.substring(0, 10) + '...');
-        }
-        
-        // Check for network connectivity
-        if (!navigator.onLine) {
-            throw new Error('No internet connection. Please check your network and try again.');
-        }
-        
-        const response = await fetch(CONFIG.openai.apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${state.apiKey}`
-            },
-            body: JSON.stringify(requestBody)
-        });
-        
-        // Handle non-JSON responses
-        let responseData;
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            responseData = await response.json();
-        } else {
-            const textResponse = await response.text();
-            throw new Error(`Received non-JSON response: ${textResponse}`);
-        }
-        
-        if (CONFIG.debug) {
-            console.log('API Response:', responseData);
-            console.log('=== OPENAI API CALL END ===');
-        }
-        
-        if (!response.ok) {
-            throw new Error(JSON.stringify(responseData));
-        }
-        
-        // Check if the response has the expected structure
-        if (!responseData.choices || responseData.choices.length === 0) {
-            throw new Error('Unexpected API response format: ' + JSON.stringify(responseData));
-        }
-        
-        // Extract text from the response
-        const messageContent = responseData.choices[0].message.content;
-        return messageContent;
-    } catch (error) {
-        console.error('=== OPENAI API ERROR ===');
-        console.error('API Error:', error);
-        
-        let errorMsg = 'There was an error calling the OpenAI API.';
-        let errorDetailsText = '';
-        
-        // Handle specific error types
-        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-            errorMsg = 'Network error: Failed to connect to the API. Please check your internet connection and API endpoint.';
-            errorDetailsText = 'This may be due to network connectivity issues, CORS restrictions, or an incorrect API endpoint.';
-        } else if (error.message.includes('NetworkError')) {
-            errorMsg = 'Network error: Unable to reach the API server.';
-            errorDetailsText = error.message;
-        } else {
-            // Try to parse error message as JSON
-            try {
-                const errorObj = JSON.parse(error.message);
-                errorMsg = errorObj.error?.message || errorMsg;
-                errorDetailsText = JSON.stringify(errorObj, null, 2);
-            } catch (e) {
-                errorDetailsText = error.message || error.toString();
-            }
-        }
-        
-        showError('API Error', errorMsg, errorDetailsText);
-        return null;
-    }
-}
-
-async function callAnthropicAPI(prompt, systemPrompt) {
-    // Debug logging
-    if (CONFIG.debug) {
-        console.log('=== ANTHROPIC API CALL START ===');
-        console.log('API Key configured:', state.apiConfigured);
-        console.log('Model:', state.model);
-    }
-    
-    // Check if API is configured
-    if (!state.apiConfigured) {
-        showError('API Not Configured', 'Please configure your Anthropic API key first.');
-        if (apiConfigSection) {
-            switchSection(apiConfigSection);
-        }
-        return null;
-    }
-    
-    // Check if CONFIG is properly defined
-    if (!CONFIG || !CONFIG.anthropic || !CONFIG.anthropic.apiUrl) {
-        console.error('CONFIG or CONFIG.anthropic.apiUrl is not defined');
-        showError('Configuration Error', 'API configuration is not properly defined. Please check your config.js file.');
-        return null;
-    }
-    
-    // Check if model is defined
-    if (!state.model) {
-        console.error('Model is not defined');
-        showError('Configuration Error', 'API model is not properly defined. Please check your configuration.');
-        return null;
-    }
-    
-    // Log API call details for debugging
-    if (CONFIG.debug) {
-        console.log('Making Anthropic API call with model:', state.model);
-        console.log('System prompt:', systemPrompt);
-        console.log('User prompt:', prompt);
-    }
-    
-    try {
-        const requestBody = {
-            model: state.model,
-            max_tokens: CONFIG.anthropic.maxTokens || 4000,
-            messages: [
-                {
-                    role: 'user',
-                    content: prompt
-                }
-            ]
-        };
-        
-        // Add system prompt if provided
-        if (systemPrompt) {
-            requestBody.system = systemPrompt;
-        }
-        
-        if (CONFIG.debug) {
-            console.log('Request body:', JSON.stringify(requestBody, null, 2));
-            console.log('API URL:', CONFIG.anthropic.apiUrl);
-            console.log('API Key (first 10 chars):', state.apiKey.substring(0, 10) + '...');
-        }
-        
-        // Check for network connectivity
-        if (!navigator.onLine) {
-            throw new Error('No internet connection. Please check your network and try again.');
-        }
-        
-        const response = await fetch(CONFIG.anthropic.apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': state.apiKey,
-                'anthropic-version': '2023-06-01' // Keep this version for backward compatibility
-            },
-            body: JSON.stringify(requestBody)
-        });
-        
-        // Handle non-JSON responses
-        let responseData;
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            responseData = await response.json();
-        } else {
-            const textResponse = await response.text();
-            throw new Error(`Received non-JSON response: ${textResponse}`);
-        }
-        
-        if (CONFIG.debug) {
-            console.log('API Response:', responseData);
-            console.log('=== ANTHROPIC API CALL END ===');
-        }
-        
-        if (!response.ok) {
-            throw new Error(JSON.stringify(responseData));
-        }
-        
-        // Check if the response has the expected structure based on latest API format
-        if (!responseData.content || responseData.content.length === 0) {
-            throw new Error('Unexpected API response format: ' + JSON.stringify(responseData));
-        }
-        
-        // Extract text from the content array based on latest API format
-        const contentBlock = responseData.content[0];
-        if (contentBlock.type === 'text' && contentBlock.text) {
-            return contentBlock.text;
-        } else {
-            throw new Error('Unexpected content format in API response: ' + JSON.stringify(contentBlock));
-        }
-    } catch (error) {
-        console.error('=== ANTHROPIC API ERROR ===');
-        console.error('API Error:', error);
-        
-        let errorMsg = 'There was an error calling the Anthropic API.';
-        let errorDetailsText = '';
-        
-        // Handle specific error types
-        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-            errorMsg = 'Network error: Failed to connect to the API. Please check your internet connection and API endpoint.';
-            errorDetailsText = 'This may be due to network connectivity issues, CORS restrictions, or an incorrect API endpoint.';
-        } else if (error.message.includes('NetworkError')) {
-            errorMsg = 'Network error: Unable to reach the API server.';
-            errorDetailsText = error.message;
-        } else {
-            // Try to parse error message as JSON
-            try {
-                const errorObj = JSON.parse(error.message);
-                errorMsg = errorObj.error?.message || errorMsg;
-                errorDetailsText = JSON.stringify(errorObj, null, 2);
-            } catch (e) {
-                errorDetailsText = error.message || error.toString();
-            }
-        }
-        
-        showError('API Error', errorMsg, errorDetailsText);
-        return null;
-    }
 }
 
 // Handler Functions
@@ -1495,13 +1681,14 @@ async function expandChapterInSections(chapter) {
 
 // Function to expand a single section using the API
 async function expandSection(section, chapterTitle) {
-    const prompt = `I'm writing a story and need to expand and enhance this section from the chapter "${chapterTitle}".
-Please rewrite this section to be more detailed, with richer descriptions, more engaging dialogue, and deeper character development.
-Make it 3-4 times longer than the original, while maintaining the same plot points and narrative flow.
+    const prompt = `
+    I'm writing a story and need to expand and enhance this section from the chapter "${chapterTitle}".
+    Please rewrite this section to be more detailed, with richer descriptions, more engaging dialogue, and deeper character development.
+    Make it 3-4 times longer than the original, while maintaining the same plot points and narrative flow.
 
-Here's the section to expand:
+    Here's the section to expand:
 
-${section}`;
+    ${section}`;
 
     const systemPrompt = "You are an expert fiction writer known for vivid descriptions, engaging dialogue, and deep character development. Your task is to expand and enhance story sections while maintaining the original narrative flow and plot points.";
     
@@ -1726,4 +1913,460 @@ function showError(title, message, details = null) {
 
 function closeErrorModal() {
     errorModal.classList.add('hidden');
+}
+
+// Editor Functions
+function handleNewFile() {
+    if (state.editor.isDirty) {
+        // Ask user if they want to save changes
+        if (confirm('You have unsaved changes. Do you want to save them before creating a new file?')) {
+            handleFileSave();
+        }
+    }
+    
+    // Reset editor state
+    state.editor.currentFile = null;
+    state.editor.currentFilename = 'Untitled';
+    state.editor.content = '';
+    state.editor.isDirty = false;
+    state.editor.referenceDoc = {
+        characters: [],
+        paragraphSummaries: [],
+        style: ''
+    };
+    
+    // Update UI
+    currentFilename.textContent = state.editor.currentFilename;
+    saveStatus.textContent = '';
+    editorContent.innerHTML = '';
+    
+    // Clear reference doc
+    characterList.innerHTML = '';
+    paragraphSummaries.innerHTML = '';
+    storyStyle.innerHTML = '';
+    storyMetadata.innerHTML = '<p class="note">New file created. Start writing to generate reference information.</p>';
+    
+    // Switch to editor section
+    switchSection(editorSection);
+}
+
+function handleFileOpen(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (state.editor.isDirty) {
+        // Ask user if they want to save changes
+        if (confirm('You have unsaved changes. Do you want to save them before opening a new file?')) {
+            handleFileSave();
+        }
+    }
+    
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        // Set editor state
+        state.editor.currentFile = file;
+        state.editor.currentFilename = file.name;
+        state.editor.content = e.target.result;
+        state.editor.isDirty = false;
+        
+        // Update UI
+        currentFilename.textContent = state.editor.currentFilename;
+        saveStatus.textContent = '';
+        editorContent.innerHTML = state.editor.content;
+        
+        // Generate reference doc
+        showLoadingIndicator('Analyzing file content...');
+        try {
+            await generateReferenceDoc(state.editor.content);
+            hideLoadingIndicator();
+        } catch (error) {
+            hideLoadingIndicator();
+            showError('Analysis Error', 'There was an error analyzing the file content.', error.toString());
+        }
+        
+        // Switch to editor section
+        switchSection(editorSection);
+    };
+    
+    reader.onerror = function() {
+        showError('File Error', 'There was an error reading the file.');
+    };
+    
+    reader.readAsText(file);
+    
+    // Reset file input
+    fileInput.value = '';
+}
+
+function handleFileSave() {
+    if (!state.editor.currentFile) {
+        // Show save dialog
+        saveFilename.value = state.editor.currentFilename;
+        fileSaveModal.classList.remove('hidden');
+    } else {
+        // Save to existing file
+        saveToFile(state.editor.currentFilename);
+    }
+}
+
+function confirmFileSave() {
+    const filename = saveFilename.value.trim();
+    if (!filename) {
+        alert('Please enter a filename.');
+        return;
+    }
+    
+    saveToFile(filename);
+    closeFileSaveModal();
+}
+
+function closeFileSaveModal() {
+    fileSaveModal.classList.add('hidden');
+}
+
+function saveToFile(filename) {
+    // Get content from editor
+    const content = editorContent.innerHTML;
+    
+    // Create blob
+    const blob = new Blob([content], { type: 'text/html' });
+    
+    // Create download link
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    
+    // Trigger download
+    a.click();
+    
+    // Update state
+    state.editor.currentFilename = filename;
+    state.editor.isDirty = false;
+    currentFilename.textContent = filename;
+    saveStatus.textContent = 'Saved';
+    
+    // Clean up
+    URL.revokeObjectURL(a.href);
+}
+
+function handleEditorChange() {
+    state.editor.isDirty = true;
+    saveStatus.textContent = 'Unsaved';
+    
+    // Debounce the reference doc generation
+    clearTimeout(state.editor.debounceTimer);
+    state.editor.debounceTimer = setTimeout(() => {
+        const content = editorContent.innerHTML;
+        if (content.trim().length > 100) {
+            generateReferenceDoc(content);
+        }
+    }, 3000);
+}
+
+function handleEditorKeydown(event) {
+    // Handle keyboard shortcuts
+    if (event.ctrlKey || event.metaKey) {
+        switch (event.key.toLowerCase()) {
+            case 's':
+                event.preventDefault();
+                handleFileSave();
+                break;
+            case 'b':
+                event.preventDefault();
+                formatText('bold');
+                break;
+            case 'i':
+                event.preventDefault();
+                formatText('italic');
+                break;
+            case 'u':
+                event.preventDefault();
+                formatText('underline');
+                break;
+        }
+    }
+}
+
+function updateSelectionState() {
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        state.editor.selectionStart = range.startOffset;
+        state.editor.selectionEnd = range.endOffset;
+    }
+}
+
+function formatText(format) {
+    editorContent.focus();
+    
+    switch (format) {
+        case 'bold':
+            document.execCommand('bold', false, null);
+            break;
+        case 'italic':
+            document.execCommand('italic', false, null);
+            break;
+        case 'underline':
+            document.execCommand('underline', false, null);
+            break;
+        case 'heading':
+            const level = headingLevel.value;
+            document.execCommand('formatBlock', false, `<${level}>`);
+            break;
+    }
+    
+    state.editor.isDirty = true;
+    saveStatus.textContent = 'Unsaved';
+}
+
+async function generateReferenceDoc(content) {
+    try {
+        // Show loading in the reference section
+        storyMetadata.innerHTML = '<div class="spinner"></div><p>Analyzing content...</p>';
+        
+        // Call API to analyze content
+        const prompt = `
+        Analyze the following story text and create a reference document with these sections:
+        1. Characters: List all characters with brief descriptions
+        2. Paragraph Summaries: For each paragraph, provide a concise summary (numbered)
+        3. Style Analysis: Describe the writing style, tone, and notable details
+        
+        Text to analyze:
+        ${content}
+        
+        Format your response as a JSON object with these keys:
+        {
+            "characters": [{"name": "Character Name", "description": "Brief description"}],
+            "paragraphSummaries": [{"id": 1, "summary": "Summary of paragraph 1"}],
+            "style": "Description of the writing style and tone"
+        }
+        `;
+        
+        const systemPrompt = "You are an expert literary analyst. Analyze the provided text and extract key information about characters, plot, and writing style. Format your response exactly as requested in JSON format.";
+        
+        const response = await callAPI(prompt, systemPrompt);
+        
+        // Parse the response
+        let referenceData;
+        try {
+            // Try to extract JSON from the response
+            const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/) || 
+                             response.match(/```\n([\s\S]*?)\n```/) || 
+                             response.match(/{[\s\S]*?}/);
+            
+            const jsonString = jsonMatch ? jsonMatch[0].replace(/```json\n|```\n|```/g, '') : response;
+            referenceData = JSON.parse(jsonString);
+        } catch (error) {
+            console.error('Error parsing reference data:', error);
+            referenceData = {
+                characters: [],
+                paragraphSummaries: [],
+                style: "Unable to analyze style. Please try again with more content."
+            };
+        }
+        
+        // Update state
+        state.editor.referenceDoc = referenceData;
+        
+        // Update UI
+        updateReferenceDocUI(referenceData);
+        
+    } catch (error) {
+        console.error('Error generating reference doc:', error);
+        storyMetadata.innerHTML = '<p class="note">Error analyzing content. Please try again.</p>';
+    }
+}
+
+function updateReferenceDocUI(referenceData) {
+    // Update characters list
+    characterList.innerHTML = '';
+    if (referenceData.characters && referenceData.characters.length > 0) {
+        referenceData.characters.forEach(character => {
+            const characterItem = document.importNode(characterItemTemplate.content, true);
+            characterItem.querySelector('.character-name').textContent = character.name;
+            characterItem.querySelector('.character-description').textContent = character.description;
+            characterList.appendChild(characterItem);
+        });
+    } else {
+        characterList.innerHTML = '<li>No characters identified yet.</li>';
+    }
+    
+    // Update paragraph summaries
+    paragraphSummaries.innerHTML = '';
+    if (referenceData.paragraphSummaries && referenceData.paragraphSummaries.length > 0) {
+        referenceData.paragraphSummaries.forEach(paragraph => {
+            const paragraphItem = document.importNode(paragraphSummaryTemplate.content, true);
+            paragraphItem.querySelector('.paragraph-id').textContent = `Paragraph ${paragraph.id}`;
+            paragraphItem.querySelector('.paragraph-summary-text').textContent = paragraph.summary;
+            paragraphSummaries.appendChild(paragraphItem);
+        });
+    } else {
+        paragraphSummaries.innerHTML = '<li>No paragraph summaries available yet.</li>';
+    }
+    
+    // Update style
+    storyStyle.innerHTML = referenceData.style || 'No style analysis available yet.';
+    
+    // Update metadata
+    storyMetadata.innerHTML = `
+        <h4>Story Reference</h4>
+        <p><strong>Characters:</strong> ${referenceData.characters ? referenceData.characters.length : 0}</p>
+        <p><strong>Paragraphs:</strong> ${referenceData.paragraphSummaries ? referenceData.paragraphSummaries.length : 0}</p>
+        <p class="note">This reference is automatically updated as you write.</p>
+    `;
+}
+
+async function handleAiAssist() {
+    // Get selected text or use all content if nothing is selected
+    let selectedText = '';
+    const selection = window.getSelection();
+    
+    if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        selectedText = range.toString();
+    }
+    
+    if (!selectedText) {
+        alert('Please select some text to apply AI assistance.');
+        return;
+    }
+    
+    // Get the assistance type
+    const assistType = aiAssistType.value;
+    
+    // Show AI assist modal
+    aiAssistModal.classList.remove('hidden');
+    aiAssistLoading.classList.remove('hidden');
+    aiAssistResult.innerHTML = '';
+    
+    try {
+        // Prepare context from reference doc
+        const referenceContext = JSON.stringify(state.editor.referenceDoc);
+        
+        // Prepare prompt based on assistance type
+        let prompt = '';
+        let systemPrompt = '';
+        
+        switch (assistType) {
+            case 'improve':
+                systemPrompt = "You are an expert editor and writing coach. Improve the provided text while maintaining the author's voice and style.";
+                prompt = `Improve the following text to make it more engaging, clear, and impactful. Maintain the same style and tone.
+                
+                REFERENCE DOCUMENT (for context):
+                ${referenceContext}
+                
+                TEXT TO IMPROVE:
+                ${selectedText}`;
+                break;
+                
+            case 'expand':
+                systemPrompt = "You are an expert creative writer who can expand content with vivid details and engaging narrative.";
+                prompt = `Expand the following text with more details, descriptions, and depth. Keep the same style and tone.
+                
+                REFERENCE DOCUMENT (for context):
+                ${referenceContext}
+                
+                TEXT TO EXPAND:
+                ${selectedText}`;
+                break;
+                
+            case 'summarize':
+                systemPrompt = "You are an expert editor who can create concise, powerful summaries.";
+                prompt = `Summarize the following text while preserving the key points and tone.
+                
+                REFERENCE DOCUMENT (for context):
+                ${referenceContext}
+                
+                TEXT TO SUMMARIZE:
+                ${selectedText}`;
+                break;
+                
+            case 'rewrite':
+                systemPrompt = "You are an expert writer who can rewrite content in different styles while preserving meaning.";
+                prompt = `Rewrite the following text in a different style while preserving the core meaning and information.
+                
+                REFERENCE DOCUMENT (for context):
+                ${referenceContext}
+                
+                TEXT TO REWRITE:
+                ${selectedText}`;
+                break;
+                
+            case 'continue':
+                systemPrompt = "You are an expert creative writer who can continue a narrative in the same style and tone.";
+                prompt = `Continue the following text with 2-3 paragraphs that naturally flow from what's written. Match the style, tone, and narrative direction.
+                
+                REFERENCE DOCUMENT (for context):
+                ${referenceContext}
+                
+                TEXT TO CONTINUE FROM:
+                ${selectedText}`;
+                break;
+        }
+        
+        // Call API
+        const response = await callAPI(prompt, systemPrompt);
+        
+        // Display result
+        aiAssistResult.innerHTML = response;
+        
+    } catch (error) {
+        console.error('AI assist error:', error);
+        aiAssistResult.innerHTML = `<p class="error">Error: ${error.message || 'Failed to get AI assistance'}</p>`;
+    } finally {
+        aiAssistLoading.classList.add('hidden');
+    }
+}
+
+function applyAiSuggestion() {
+    // Get the suggestion text
+    const suggestionText = aiAssistResult.innerHTML;
+    
+    // Get the selection
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        
+        // Replace selected text with suggestion
+        range.deleteContents();
+        const fragment = document.createRange().createContextualFragment(suggestionText);
+        range.insertNode(fragment);
+        
+        // Update state
+        state.editor.isDirty = true;
+        saveStatus.textContent = 'Unsaved';
+    }
+    
+    // Close modal
+    closeAiAssistModal();
+}
+
+function closeAiAssistModal() {
+    aiAssistModal.classList.add('hidden');
+}
+
+function showLoadingIndicator(message) {
+    // Create a loading indicator if it doesn't exist
+    let loadingIndicator = document.getElementById('editor-loading');
+    if (!loadingIndicator) {
+        loadingIndicator = document.createElement('div');
+        loadingIndicator.id = 'editor-loading';
+        loadingIndicator.className = 'loading-indicator';
+        loadingIndicator.innerHTML = `
+            <div class="spinner"></div>
+            <p id="loading-message"></p>
+        `;
+        document.body.appendChild(loadingIndicator);
+    }
+    
+    // Set message and show
+    document.getElementById('loading-message').textContent = message || 'Loading...';
+    loadingIndicator.classList.remove('hidden');
+}
+
+function hideLoadingIndicator() {
+    const loadingIndicator = document.getElementById('editor-loading');
+    if (loadingIndicator) {
+        loadingIndicator.classList.add('hidden');
+    }
 }

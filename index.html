@@ -12,6 +12,16 @@
         <header>
             <h1>AI Story Developer</h1>
             <p>Transform your story ideas into fully developed narratives using AI</p>
+            <nav>
+                <ul>
+                    <li><a href="#" data-section="prompt-section">Initial Prompt</a></li>
+                    <li><a href="#" data-section="expanded-prompt-section">Expanded Prompt</a></li>
+                    <li><a href="#" data-section="plot-suggestions-section">Plot Suggestions</a></li>
+                    <li><a href="#" data-section="chapter-development-section">Chapter Development</a></li>
+                    <li><a href="#" data-section="editor-section">Story Editor</a></li>
+                    <li><a href="#" data-section="api-config-section">API Config</a></li>
+                </ul>
+            </nav>
         </header>
 
         <main>
@@ -81,11 +91,112 @@
                     <p>Developing chapters...</p>
                 </div>
             </section>
+
+            <!-- Editor Section -->
+            <section id="editor-section" class="hidden-section">
+                <h2>Story Editor</h2>
+                <div class="editor-container">
+                    <div class="editor-toolbar">
+                        <div class="file-controls">
+                            <button id="new-file-btn" class="secondary-btn">New File</button>
+                            <button id="open-file-btn" class="secondary-btn">Open File</button>
+                            <button id="save-file-btn" class="primary-btn">Save File</button>
+                            <input type="file" id="file-input" accept=".txt,.md,.html" style="display: none;">
+                            <span id="current-filename">Untitled</span>
+                            <span id="save-status"></span>
+                        </div>
+                        <div class="format-controls">
+                            <button id="bold-btn" class="icon-btn" title="Bold"><strong>B</strong></button>
+                            <button id="italic-btn" class="icon-btn" title="Italic"><em>I</em></button>
+                            <button id="underline-btn" class="icon-btn" title="Underline"><u>U</u></button>
+                            <select id="heading-level" title="Heading Level">
+                                <option value="p">Paragraph</option>
+                                <option value="h1">Heading 1</option>
+                                <option value="h2">Heading 2</option>
+                                <option value="h3">Heading 3</option>
+                            </select>
+                            <button id="heading-btn" class="icon-btn" title="Apply Heading">H</button>
+                            <button id="undo-btn" class="icon-btn" title="Undo">↩</button>
+                            <button id="redo-btn" class="icon-btn" title="Redo">↪</button>
+                        </div>
+                        <div class="ai-controls">
+                            <select id="ai-assist-type" title="AI Assistance Type">
+                                <option value="improve">Improve</option>
+                                <option value="expand">Expand</option>
+                                <option value="summarize">Summarize</option>
+                                <option value="rewrite">Rewrite</option>
+                                <option value="continue">Continue</option>
+                            </select>
+                            <button id="ai-assist-btn" class="primary-btn">AI Assist</button>
+                        </div>
+                    </div>
+                    <div class="editor-main">
+                        <div id="editor-content" class="editor-content" contenteditable="true"></div>
+                        <div class="editor-sidebar">
+                            <div id="story-metadata" class="sidebar-section">
+                                <h4>Story Reference</h4>
+                                <p class="note">Start writing to generate reference information.</p>
+                            </div>
+                            <div class="accordion-item">
+                                <div class="accordion-header">Characters</div>
+                                <div class="accordion-content">
+                                    <ul id="character-list" class="reference-list"></ul>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <div class="accordion-header">Paragraph Summaries</div>
+                                <div class="accordion-content">
+                                    <ul id="paragraph-summaries" class="reference-list"></ul>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <div class="accordion-header">Style Analysis</div>
+                                <div class="accordion-content">
+                                    <p id="story-style" class="reference-text"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
 
         <footer>
             <p>AI Story Developer - Powered by AI</p>
         </footer>
+    </div>
+
+    <!-- AI Assist Modal -->
+    <div id="ai-assist-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>AI Suggestion</h3>
+            <div id="ai-assist-loading" class="loading-indicator">
+                <div class="spinner"></div>
+                <p>Generating suggestion...</p>
+            </div>
+            <div id="ai-assist-result" class="ai-result"></div>
+            <div class="modal-buttons">
+                <button id="apply-ai-suggestion-btn" class="primary-btn">Apply Suggestion</button>
+                <button id="cancel-ai-suggestion-btn" class="secondary-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Save Modal -->
+    <div id="file-save-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>Save File</h3>
+            <div class="form-group">
+                <label for="save-filename">Filename:</label>
+                <input type="text" id="save-filename" placeholder="Enter filename">
+            </div>
+            <div class="modal-buttons">
+                <button id="confirm-save-btn" class="primary-btn">Save</button>
+                <button id="cancel-save-btn" class="secondary-btn">Cancel</button>
+            </div>
+        </div>
     </div>
 
     <!-- Templates -->
@@ -103,9 +214,25 @@
         <div class="chapter">
             <h3 class="chapter-title"></h3>
             <div class="chapter-content"></div>
-            <button class="edit-chapter-btn secondary-btn">Edit</button>
-            <button class="regenerate-chapter-btn secondary-btn">Regenerate</button>
+            <div class="chapter-buttons">
+                <button class="expand-section-btn secondary-btn">Expand Section</button>
+                <button class="edit-chapter-btn secondary-btn">Edit</button>
+            </div>
         </div>
+    </template>
+
+    <template id="character-item-template">
+        <li class="character-item">
+            <div class="character-name"></div>
+            <div class="character-description"></div>
+        </li>
+    </template>
+
+    <template id="paragraph-summary-template">
+        <li class="paragraph-item">
+            <div class="paragraph-id"></div>
+            <div class="paragraph-summary-text"></div>
+        </li>
     </template>
 
     <script src="script.js"></script>
