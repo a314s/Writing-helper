@@ -27,9 +27,9 @@
         <main>
             <section id="api-config-section" class="active-section">
                 <h2>API Configuration</h2>
-                <p>Enter your Anthropic API key to enable AI-powered story development:</p>
+                <p>Enter your Anthropic or OpenAI API key to enable AI-powered story development:</p>
                 <div class="form-group">
-                    <label for="api-key">Anthropic API Key:</label>
+                    <label for="api-key">Anthropic or OpenAI API Key:</label>
                     <input type="password" id="api-key" placeholder="Enter your API key here">
                 </div>
                 <div class="form-group">
@@ -135,24 +135,42 @@
                         <div class="editor-sidebar">
                             <div id="story-metadata" class="sidebar-section">
                                 <h4>Story Reference</h4>
-                                <p class="note">Start writing to generate reference information.</p>
-                            </div>
-                            <div class="accordion-item">
-                                <div class="accordion-header">Characters</div>
-                                <div class="accordion-content">
-                                    <ul id="character-list" class="reference-list"></ul>
+                                <div class="accordion">
+                                    <div class="accordion-item">
+                                        <div class="accordion-header">Characters</div>
+                                        <div class="accordion-content">
+                                            <ul id="character-list" class="reference-list"></ul>
+                                        </div>
+                                    </div>
+                                    <div class="accordion-item">
+                                        <div class="accordion-header">Paragraph Summaries</div>
+                                        <div class="accordion-content">
+                                            <ul id="paragraph-summaries" class="reference-list"></ul>
+                                        </div>
+                                    </div>
+                                    <div class="accordion-item">
+                                        <div class="accordion-header">Style Analysis</div>
+                                        <div class="accordion-content">
+                                            <p id="story-style" class="reference-text"></p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="accordion-item">
-                                <div class="accordion-header">Paragraph Summaries</div>
-                                <div class="accordion-content">
-                                    <ul id="paragraph-summaries" class="reference-list"></ul>
+                            <!-- Version Control Panel -->
+                            <div id="version-control-panel" class="sidebar-section">
+                                <h4>Version Control</h4>
+                                <div class="vc-controls">
+                                    <input type="text" id="vc-commit-message" placeholder="Commit message">
+                                    <button id="vc-commit-btn" class="primary-btn">Commit</button>
                                 </div>
-                            </div>
-                            <div class="accordion-item">
-                                <div class="accordion-header">Style Analysis</div>
-                                <div class="accordion-content">
-                                    <p id="story-style" class="reference-text"></p>
+                                <div class="vc-branch-controls">
+                                    <input type="text" id="vc-branch-name" placeholder="New branch name">
+                                    <button id="vc-create-branch-btn" class="secondary-btn">Create Branch</button>
+                                    <select id="vc-branch-switcher"></select>
+                                </div>
+                                <div class="vc-history">
+                                    <h5>History & Branches</h5>
+                                    <ul id="vc-history-list"></ul>
                                 </div>
                             </div>
                         </div>

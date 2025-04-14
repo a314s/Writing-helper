@@ -22,7 +22,8 @@ const state = {
             paragraphSummaries: [],
             style: ''
         }
-    }
+    },
+    tokenLimit: 0 // New state property for token limit
 };
 
 // DOM Elements - Will be initialized in DOMContentLoaded
@@ -102,6 +103,14 @@ let confirmSaveBtn;
 let cancelSaveBtn;
 let accordionHeaders;
 
+// Version Control UI elements
+let vcCommitMessage;
+let vcCommitBtn;
+let vcBranchName;
+let vcCreateBranchBtn;
+let vcBranchSwitcher;
+let vcHistoryList;
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', initializeApp);
 
@@ -127,6 +136,9 @@ function initializeApp() {
     if (initialNavLink) {
         initialNavLink.classList.add('active');
     }
+    
+    // Initialize Version Control UI
+    initializeVersionControlUI();
     
     console.log('App initialized');
 }
@@ -208,6 +220,14 @@ function initializeDOMElements() {
     confirmSaveBtn = document.getElementById('confirm-save-btn');
     cancelSaveBtn = document.getElementById('cancel-save-btn');
     accordionHeaders = document.querySelectorAll('.accordion-header');
+    
+    // Version Control UI elements
+    vcCommitMessage = document.getElementById('vc-commit-message');
+    vcCommitBtn = document.getElementById('vc-commit-btn');
+    vcBranchName = document.getElementById('vc-branch-name');
+    vcCreateBranchBtn = document.getElementById('vc-create-branch-btn');
+    vcBranchSwitcher = document.getElementById('vc-branch-switcher');
+    vcHistoryList = document.getElementById('vc-history-list');
     
     // Set provider selection to match CONFIG
     if (providerSelection) {
@@ -409,6 +429,43 @@ function addEventListeners() {
             }
         });
     });
+    
+    // Version Control UI event listeners (GUARDED)
+    if (vcCommitBtn) {
+        vcCommitBtn.addEventListener('click', () => {
+            const msg = vcCommitMessage.value.trim() || 'Update';
+            const content = editorContent.innerText;
+            window.versionControl.commit(msg, content);
+            vcCommitMessage.value = '';
+            renderVersionControl();
+        });
+    }
+    if (vcCreateBranchBtn) {
+        vcCreateBranchBtn.addEventListener('click', () => {
+            const branch = vcBranchName.value.trim();
+            if (!branch) return;
+            try {
+                window.versionControl.createBranch(branch);
+                vcBranchName.value = '';
+                renderVersionControl();
+            } catch (e) {
+                alert(e.message);
+            }
+        });
+    }
+    if (vcBranchSwitcher) {
+        vcBranchSwitcher.addEventListener('change', () => {
+            const branch = vcBranchSwitcher.value;
+            const repo = window.versionControl.loadRepo();
+            if (!repo) return;
+            const commitId = repo.branches[branch];
+            window.versionControl.checkout(commitId);
+            // Update editor content
+            editorContent.innerText = repo.commits[commitId].content;
+            state.editor.content = repo.commits[commitId].content;
+            renderVersionControl();
+        });
+    }
 }
 
 // API Call Functions
@@ -1644,7 +1701,7 @@ async function handleSendToAI() {
     }
 }
 
-// Function to expand a chapter by breaking it into sections and sending each to the API
+// Function to expand a chapter by breaking it into sections and sending them sequentially, while merging character info to avoid duplicates
 async function expandChapterInSections(chapter) {
     // Break the chapter content into sections (paragraphs)
     const paragraphs = chapter.content.split('\n\n').filter(p => p.trim() !== '');
@@ -1693,8 +1750,8 @@ async function expandSection(section, chapterTitle) {
     const systemPrompt = "You are an expert fiction writer known for vivid descriptions, engaging dialogue, and deep character development. Your task is to expand and enhance story sections while maintaining the original narrative flow and plot points.";
     
     try {
-        const expandedSection = await callAPI(prompt, systemPrompt);
-        return expandedSection;
+        const response = await callAIWithChunking(prompt, systemPrompt);
+        return response.result;
     } catch (error) {
         console.error('Error expanding section:', error);
         // Return the original section if expansion fails
@@ -2144,17 +2201,17 @@ async function generateReferenceDoc(content) {
         
         const systemPrompt = "You are an expert literary analyst. Analyze the provided text and extract key information about characters, plot, and writing style. Format your response exactly as requested in JSON format.";
         
-        const response = await callAPI(prompt, systemPrompt);
+        const response = await callAPIWithChunking(prompt, systemPrompt);
         
         // Parse the response
         let referenceData;
         try {
             // Try to extract JSON from the response
-            const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/) || 
-                             response.match(/```\n([\s\S]*?)\n```/) || 
-                             response.match(/{[\s\S]*?}/);
+            const jsonMatch = response.result.match(/```json\n([\s\S]*?)\n```/) || 
+                             response.result.match(/```\n([\s\S]*?)\n```/) || 
+                             response.result.match(/{[\s\S]*?}/);
             
-            const jsonString = jsonMatch ? jsonMatch[0].replace(/```json\n|```\n|```/g, '') : response;
+            const jsonString = jsonMatch ? jsonMatch[0].replace(/```json\n|```\n|```/g, '') : response.result;
             referenceData = JSON.parse(jsonString);
         } catch (error) {
             console.error('Error parsing reference data:', error);
@@ -2227,7 +2284,7 @@ async function handleAiAssist() {
     }
     
     if (!selectedText) {
-        alert('Please select some text to apply AI assistance.');
+        alert('Please select some text to use AI assistance.');
         return;
     }
     
@@ -2252,7 +2309,7 @@ async function handleAiAssist() {
                 systemPrompt = "You are an expert editor and writing coach. Improve the provided text while maintaining the author's voice and style.";
                 prompt = `Improve the following text to make it more engaging, clear, and impactful. Maintain the same style and tone.
                 
-                REFERENCE DOCUMENT (for context):
+                REFERENCE CHARACTERS:
                 ${referenceContext}
                 
                 TEXT TO IMPROVE:
@@ -2263,7 +2320,7 @@ async function handleAiAssist() {
                 systemPrompt = "You are an expert creative writer who can expand content with vivid details and engaging narrative.";
                 prompt = `Expand the following text with more details, descriptions, and depth. Keep the same style and tone.
                 
-                REFERENCE DOCUMENT (for context):
+                REFERENCE CHARACTERS:
                 ${referenceContext}
                 
                 TEXT TO EXPAND:
@@ -2274,7 +2331,7 @@ async function handleAiAssist() {
                 systemPrompt = "You are an expert editor who can create concise, powerful summaries.";
                 prompt = `Summarize the following text while preserving the key points and tone.
                 
-                REFERENCE DOCUMENT (for context):
+                REFERENCE CHARACTERS:
                 ${referenceContext}
                 
                 TEXT TO SUMMARIZE:
@@ -2285,7 +2342,7 @@ async function handleAiAssist() {
                 systemPrompt = "You are an expert writer who can rewrite content in different styles while preserving meaning.";
                 prompt = `Rewrite the following text in a different style while preserving the core meaning and information.
                 
-                REFERENCE DOCUMENT (for context):
+                REFERENCE CHARACTERS:
                 ${referenceContext}
                 
                 TEXT TO REWRITE:
@@ -2296,7 +2353,7 @@ async function handleAiAssist() {
                 systemPrompt = "You are an expert creative writer who can continue a narrative in the same style and tone.";
                 prompt = `Continue the following text with 2-3 paragraphs that naturally flow from what's written. Match the style, tone, and narrative direction.
                 
-                REFERENCE DOCUMENT (for context):
+                REFERENCE CHARACTERS:
                 ${referenceContext}
                 
                 TEXT TO CONTINUE FROM:
@@ -2304,11 +2361,10 @@ async function handleAiAssist() {
                 break;
         }
         
-        // Call API
-        const response = await callAPI(prompt, systemPrompt);
+        // Use chunked AI call
+        const { result } = await callAIWithChunking(prompt, systemPrompt);
         
-        // Display result
-        aiAssistResult.innerHTML = response;
+        aiAssistResult.innerHTML = result;
         
     } catch (error) {
         console.error('AI assist error:', error);
@@ -2369,4 +2425,236 @@ function hideLoadingIndicator() {
     if (loadingIndicator) {
         loadingIndicator.classList.add('hidden');
     }
+}
+
+// Token Limit Detection and Chunking
+const API_TOKEN_LIMITS = {
+    openai: {
+        'gpt-3.5-turbo': 4096,
+        'gpt-4': 8192,
+        'gpt-4-32k': 32768
+    },
+    anthropic: {
+        'claude-instant-1': 9000,
+        'claude-2': 100000
+    }
+};
+
+function getTokenLimit(provider, model) {
+    if (API_TOKEN_LIMITS[provider] && API_TOKEN_LIMITS[provider][model]) {
+        return API_TOKEN_LIMITS[provider][model];
+    }
+    // Default fallback
+    return 4096;
+}
+
+// Utility: Estimate tokens (simple whitespace split, can be improved)
+function estimateTokens(text) {
+    return Math.ceil(text.split(/\s+/).length * 1.3); // crude estimate
+}
+
+// Utility: Chunk text into sections 10% smaller than token limit
+function chunkTextForAPI(text, tokenLimit) {
+    const safeLimit = Math.floor(tokenLimit * 0.9);
+    const words = text.split(/\s+/);
+    const chunks = [];
+    let chunk = [];
+    let currentTokens = 0;
+    for (let i = 0; i < words.length; i++) {
+        currentTokens += 1.3; // crude estimate per word
+        chunk.push(words[i]);
+        if (currentTokens >= safeLimit) {
+            chunks.push(chunk.join(' '));
+            chunk = [];
+            currentTokens = 0;
+        }
+    }
+    if (chunk.length > 0) {
+        chunks.push(chunk.join(' '));
+    }
+    return chunks;
+}
+
+// Utility: Merge and deduplicate character lists by name
+function mergeCharacters(existing, incoming) {
+    const map = {};
+    existing.forEach(c => map[c.name?.toLowerCase() || c.name] = c);
+    incoming.forEach(c => {
+        const key = c.name?.toLowerCase() || c.name;
+        if (!map[key]) map[key] = c;
+    });
+    return Object.values(map);
+}
+
+// On app load, set token limit in state
+function initializeApp() {
+    console.log('Initializing app...');
+    
+    // Initialize DOM elements
+    initializeDOMElements();
+    
+    // Add event listeners
+    addEventListeners();
+    
+    // Load API configuration
+    loadApiConfig();
+    
+    // Set initial section
+    const initialSection = document.querySelector('.active-section') || promptSection;
+    switchSection(initialSection);
+    
+    // Set active nav link for initial section
+    const initialSectionId = initialSection.id;
+    const initialNavLink = document.querySelector(`nav a[data-section="${initialSectionId}"]`);
+    if (initialNavLink) {
+        initialNavLink.classList.add('active');
+    }
+    
+    // Initialize Version Control UI
+    initializeVersionControlUI();
+    
+    console.log('App initialized');
+    
+    // Set token limit after loading API config
+    setTimeout(() => {
+        const provider = state.apiProvider;
+        const model = state.model || 'gpt-3.5-turbo';
+        state.tokenLimit = getTokenLimit(provider, model);
+        console.log('Token limit set:', state.tokenLimit);
+    }, 500);
+}
+
+// Chunked AI Call Logic
+async function callAIWithChunking(fullText, systemPrompt) {
+    const tokenLimit = state.tokenLimit || 4096;
+    const chunks = chunkTextForAPI(fullText, tokenLimit);
+    let combinedResult = '';
+    let currentCharacters = [];
+    for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        // Prepare prompt (simplified, adapt as needed)
+        let prompt = '';
+        switch (systemPrompt) {
+            case "You are an expert fiction writer known for vivid descriptions, engaging dialogue, and deep character development. Your task is to expand and enhance story sections while maintaining the original narrative flow and plot points.":
+                prompt = `Expand and enhance this section of the story: "${chunk}"`;
+                break;
+            // Add other cases as needed
+            default:
+                prompt = chunk;
+        }
+        // Call API for this chunk
+        const response = await callAPI(prompt, systemPrompt);
+        // Optionally parse and extract new characters (if API returns them)
+        // For now, just append the result
+        combinedResult += response + '\n';
+        // Example: If response includes new characters, merge them
+        // (You would need to parse response for new character info)
+        // const newCharacters = extractCharactersFromResponse(response);
+        // currentCharacters = mergeCharacters(currentCharacters, newCharacters);
+    }
+    return { result: combinedResult.trim(), characters: currentCharacters };
+}
+
+// Version Control UI
+function initializeVersionControlUI() {
+    vcCommitMessage = document.getElementById('vc-commit-message');
+    vcCommitBtn = document.getElementById('vc-commit-btn');
+    vcBranchName = document.getElementById('vc-branch-name');
+    vcCreateBranchBtn = document.getElementById('vc-create-branch-btn');
+    vcBranchSwitcher = document.getElementById('vc-branch-switcher');
+    vcHistoryList = document.getElementById('vc-history-list');
+
+    // Init repo if needed
+    window.versionControl.initRepo(state.editor.content || '');
+    renderVersionControl();
+
+    // Event: Commit
+    if (vcCommitBtn) {
+        vcCommitBtn.addEventListener('click', () => {
+            const msg = vcCommitMessage.value.trim() || 'Update';
+            const content = editorContent.innerText;
+            window.versionControl.commit(msg, content);
+            vcCommitMessage.value = '';
+            renderVersionControl();
+        });
+    }
+    // Event: Create Branch
+    if (vcCreateBranchBtn) {
+        vcCreateBranchBtn.addEventListener('click', () => {
+            const branch = vcBranchName.value.trim();
+            if (!branch) return;
+            try {
+                window.versionControl.createBranch(branch);
+                vcBranchName.value = '';
+                renderVersionControl();
+            } catch (e) {
+                alert(e.message);
+            }
+        });
+    }
+    // Event: Switch Branch
+    if (vcBranchSwitcher) {
+        vcBranchSwitcher.addEventListener('change', () => {
+            const branch = vcBranchSwitcher.value;
+            const repo = window.versionControl.loadRepo();
+            if (!repo) return;
+            const commitId = repo.branches[branch];
+            window.versionControl.checkout(commitId);
+            // Update editor content
+            editorContent.innerText = repo.commits[commitId].content;
+            state.editor.content = repo.commits[commitId].content;
+            renderVersionControl();
+        });
+    }
+}
+
+function renderVersionControl() {
+    const repo = window.versionControl.loadRepo();
+    if (!repo) return;
+    // Branch Switcher
+    vcBranchSwitcher.innerHTML = '';
+    Object.keys(repo.branches).forEach(branch => {
+        const opt = document.createElement('option');
+        opt.value = branch;
+        opt.textContent = branch + (repo.HEAD.branch === branch ? ' (current)' : '');
+        if (repo.HEAD.branch === branch) opt.selected = true;
+        vcBranchSwitcher.appendChild(opt);
+    });
+    // History List
+    const history = window.versionControl.getHistory();
+    vcHistoryList.innerHTML = '';
+    history.forEach(commit => {
+        const li = document.createElement('li');
+        li.className = 'vc-history-item';
+        li.innerHTML = `<span class="vc-branch">[${commit.branch}]</span>
+            <span class="vc-msg">${commit.message}</span>
+            <span class="vc-time">${new Date(commit.timestamp).toLocaleString()}</span>`;
+        // Restore/Checkout button
+        const restoreBtn = document.createElement('button');
+        restoreBtn.textContent = 'Restore';
+        restoreBtn.className = 'secondary-btn';
+        restoreBtn.onclick = () => {
+            window.versionControl.checkout(commit.id);
+            editorContent.innerText = commit.content;
+            state.editor.content = commit.content;
+            renderVersionControl();
+        };
+        li.appendChild(restoreBtn);
+        // Branch from here button
+        const branchBtn = document.createElement('button');
+        branchBtn.textContent = 'Branch';
+        branchBtn.className = 'secondary-btn';
+        branchBtn.onclick = () => {
+            const branch = prompt('Branch name?');
+            if (!branch) return;
+            try {
+                window.versionControl.createBranch(branch, commit.id);
+                renderVersionControl();
+            } catch (e) {
+                alert(e.message);
+            }
+        };
+        li.appendChild(branchBtn);
+        vcHistoryList.appendChild(li);
+    });
 }
